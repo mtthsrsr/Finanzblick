@@ -1,3 +1,4 @@
+import {enrichUnion} from './unionComposition'
 import {decodeHtml} from './deka'
 import {isValidIsin} from '../shared/analysis'
 import type {Product} from '../shared/model'
@@ -29,9 +30,10 @@ export function parseUnionProduct(html:string,isin:string,url:string):Product|nu
 }
 export async function lookupUnion(isin:string,read:ReadText){
  const url=(await unionDirectory(read)).get(isin);if(!url)return null
- const product=parseUnionProduct(await read(url),isin,url)
+ const html=await read(url)
+ const product=parseUnionProduct(html,isin,url)
  if(!product)throw new Error('Union-Produktseite konnte nicht eindeutig bestätigt werden.')
- return product
+ return enrichUnion(product,html,read)
 }
 export function parseOnvista(html:string,isin:string):Product|null{
  const script=html.match(/<script\b[^>]*\bid="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/i)?.[1]

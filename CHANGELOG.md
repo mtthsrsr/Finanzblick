@@ -1,5 +1,15 @@
 # Änderungen
 
+## 0.2.1 – 29.10.2026
+
+- „Nicht aufgeschlüsselt“ ist in Diagrammen und Tabellen anklickbar: Detailansicht mit Produkten, offenen Beträgen, unterschiedlichen Prozent-Bezugsgrößen und konkreten Ursachen; direkter Sprung zum Produkt.
+
+- Union-Fonds laden zusätzlich die veröffentlichten Länder, Branchen und größten Einzelpositionen aus der offiziellen Fondsansicht.
+- UniImmo: Regionen und Nutzungsarten des Immobilienportfolios separat als Balkenanzeigen; keine falsche Übernahme als Gewichte des gesamten Fondsvermögens.
+- Unterschiedliche Prozenteinheiten werden geprüft; Datenstand, Quellenlink und nicht aufgeschlüsselte Restanteile bleiben sichtbar.
+- Vorhandene Daten bleiben bei einem Abruffehler erhalten; Rohstoff-Engagements werden nicht mit Sicherheitenbeständen verwechselt.
+- Geprüft mit UniEM Global A, UniGlobal und UniFonds sowie automatisierten Regressionstests. Die Anbieteransicht liefert keine vollständige Bestandsliste.
+
 ## 0.2.0 – 29.10.2026
 
 - Allgemeine Union-Investment-Suche über offizielles Produktverzeichnis und bestätigte Produktprofile.
