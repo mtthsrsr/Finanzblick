@@ -1,0 +1,58 @@
+name: Publish verified installers
+on:
+  workflow_dispatch:
+    inputs:
+      run_id:
+        description: Successful Desktop releases build run
+        required: true
+      tag:
+        description: Existing release tag with the same source tree
+        required: true
+permissions:
+  contents: write
+  actions: read
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      SOURCE_RUN: ${{ inputs.run_id }}
+      RELEASE_TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Verify successful build and identical tagged sources
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "$SOURCE_RUN" =~ ^[0-9]+$ ]]
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          gh api "repos/$GH_REPO/actions/runs/$SOURCE_RUN" > /tmp/build.json
+          test "$(jq -r .conclusion /tmp/build.json)" = success
+          test "$(jq -r .path /tmp/build.json)" = .github/workflows/release.yml
+          source_sha=$(jq -r .head_sha /tmp/build.json)
+          test "$(git rev-parse "$source_sha^{tree}")" = "$(git rev-parse "$RELEASE_TAG^{tree}")"
+          test "v$(git show "$RELEASE_TAG:package.json" | jq -r .version)" = "$RELEASE_TAG"
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.run_id }}
+          pattern: installers-*
+          merge-multiple: true
+          path: release
+      - name: Verify expected assets and publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          version=${RELEASE_TAG#v}
+          for asset in "Finanzblick-$version-win-x64.exe" "Finanzblick-$version-win-arm64.exe" "Finanzblick-$version-mac-x64.dmg" "Finanzblick-$version-mac-arm64.dmg"; do
+            test -s "release/$asset"
+          done
+          test "$(find release -type f | wc -l)" -eq 4
+          notes="$GITHUB_WORKSPACE/docs/releases/$RELEASE_TAG.md"
+          test -s "$notes"
+          cd release
+          sha256sum *.exe *.dmg > SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" ./*.exe ./*.dmg SHA256SUMS.txt --verify-tag --prerelease --title "Finanzblick $version – Produktsuche und Linkimport" --notes-file "$notes"
