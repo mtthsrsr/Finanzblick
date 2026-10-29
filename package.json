@@ -1,7 +1,7 @@
 {
   "name": "finanzblick",
   "productName": "Finanzblick",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "description": "Fonds und ETFs nach Ländern und Einzelanlagen verstehen",
   "main": "out/main/index.js",

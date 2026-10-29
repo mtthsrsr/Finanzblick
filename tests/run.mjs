@@ -31,7 +31,8 @@ const countryA={...fund,product:{...fund.product,breakdowns:{countries:{rows:[{n
 const countryB={...manual,product:{...manual.product,breakdowns:{countries:{rows:[{name:'United States',weight:100}]}}}};
 assert.equal(aggregate([countryA,countryB],'countries').rows.length,1);
 const anonymousA=make('DE0008491002',1000,[{name:'Same name',weight:100}]);const anonymousB=make('DE0008491051',1000,[{name:'Same name',weight:100}]);
-assert.equal(aggregate([anonymousA,anonymousB],'holdings').rows.length,2);
+assert.equal(aggregate([anonymousA,anonymousB],'holdings').rows.length,1);
+assert.equal(aggregate([anonymousA,anonymousB],'holdings').rows[0].identity,'name');
 const certificate={...manual,product:{...manual.product,kind:'structured',breakdowns:{holdings:{rows:[{name:'Underlying',weight:100}]}}}};
 assert.equal(aggregate([certificate],'holdings').coverage,0);
 for(let n=1;n<=100;n++){
@@ -63,3 +64,24 @@ for(const [entries,dimension,single,library] of [[[partial,emptyFund],'countries
 }
 assert.ok(aggregate([certificate],'holdings').unknownProducts[0].reasons[0].includes('Zertifikat'));
 console.log('Unknown drill-down reconciles EUR/portfolio/product/unknown percentages, nesting, cycles, equal names and uninvested products.');
+const nv1=make('IE00B4L5Y983',1000,[{name:'NVIDIA Corp.',isin:'US67066G1040',weight:10}]);
+const nv2=make('IE00BKM4GZ66',2000,[{name:'Nvidia Corporation',weight:10}]);
+const nvidia=aggregate([nv1,nv2],'holdings');
+assert.equal(nvidia.rows.filter(r=>!r.unknown).length,1);
+assert.equal(nvidia.rows.find(r=>!r.unknown).value,300);
+assert.equal(nvidia.rows.find(r=>!r.unknown).identity,'name');
+const classes=make('DE000ETFL581',1000,[{name:'Alphabet Inc Class A',isin:'US02079K3059',weight:40},{name:'Alphabet Inc Class C',isin:'US02079K1079',weight:40}]);
+assert.equal(aggregate([classes],'holdings').rows.filter(r=>!r.unknown).length,2);
+const conflict=make('DE000ETFL581',1000,[{name:'Same issuer',isin:'US02079K3059',weight:30},{name:'Same issuer',isin:'US02079K1079',weight:30},{name:'Same issuer',weight:30}]);
+assert.equal(aggregate([conflict],'holdings').rows.filter(r=>!r.unknown).length,3);
+await build({entryPoints:['src/shared/chartAnalysis.ts'],outfile:'tests/.compiled/chartAnalysis.mjs',bundle:true,platform:'node',format:'esm'});
+const {analyzeRows}=await import('./.compiled/chartAnalysis.mjs');
+const filtered=analyzeRows(nvidia.rows,'known','','desc',3000);
+assert.equal(filtered.selectedWeight,10);assert.equal(filtered.selectedEUR,300);assert.equal(filtered.rows[0].relativeWeight,100);assert.equal(filtered.rows[0].amountEUR,300);
+const noFilter=analyzeRows(nvidia.rows,'all','','desc',3000);
+assert.equal(noFilter.selectedWeight,100);assert.equal(noFilter.selectedEUR,3000);
+assert.equal(analyzeRows(nvidia.rows,'unknown','','desc',3000).selectedEUR,2700);
+assert.equal(analyzeRows(nvidia.rows,'all','no-match','name',3000).rows.length,0);
+assert.equal(analyzeRows(nvidia.rows,'known','','desc').rows[0].amountEUR,undefined);
+assert.equal(analyzeRows(nvidia.rows,'all','nvidia','asc',3000).selectedEUR,300);
+console.log('Chart analysis: filter denominators, EUR values, reset/no-filter, name matching, distinct share classes and conflicting ISINs passed.');
