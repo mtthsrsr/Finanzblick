@@ -40,3 +40,26 @@ for(let n=1;n<=100;n++){
  assert.ok(Math.abs(output.rows.reduce((s,r)=>s+r.weight,0)-100)<1e-8);
 }
 console.log('Accounting regressions passed: manual/uninvested products, units, partial data, direct stock overlap, countries, certificates and conservation of totals.');
+// The drill-down must reconcile with the very same unknown slice, including nested funds.
+const partial=make('IE00B4L5Y983',1000,[{name:'Known',weight:60}]);
+const emptyFund=make('IE00BKM4GZ66',3000,[]);
+partial.product.name=emptyFund.product.name='Same display name';
+const detail=aggregate([partial,emptyFund,uninvested],'holdings');
+assert.equal(detail.unknownProducts.length,2);
+assert.equal(detail.unknownProducts.reduce((s,r)=>s+r.value,0),3400);
+assert.equal(detail.unknownProducts.reduce((s,r)=>s+r.weight,0),85);
+assert.ok(Math.abs(detail.unknownProducts.reduce((s,r)=>s+r.unknownShare,0)-100)<1e-10);
+assert.equal(detail.unknownProducts.find(r=>r.productId===partial.product.id).productWeight,40);
+assert.equal(detail.unknownProducts.find(r=>r.productId===partial.product.id).weight,10);
+const nestedDetail=aggregate([parent],'holdings',false,[parent,partial]);
+assert.equal(nestedDetail.unknownProducts.length,1);
+assert.equal(nestedDetail.unknownProducts[0].productId,parent.product.id);
+assert.equal(nestedDetail.unknownProducts[0].value,1400);
+assert.equal(nestedDetail.unknownProducts[0].reasons.length,2);
+for(const [entries,dimension,single,library] of [[[partial,emptyFund],'countries',false],[[units],'holdings',false],[[certificate],'holdings',false],[[parent],'holdings',false,[parent,a]],[[partial],'holdings',true],[[uninvested],'holdings',false]]){
+ const r=aggregate(entries,dimension,single,library);
+ assert.ok(Math.abs(r.unknownProducts.reduce((s,p)=>s+p.value,0)-r.rows.filter(p=>p.unknown).reduce((s,p)=>s+p.value,0))<1e-8);
+ assert.ok(Math.abs(r.unknownProducts.reduce((s,p)=>s+p.weight,0)-r.rows.filter(p=>p.unknown).reduce((s,p)=>s+p.weight,0))<1e-8);
+}
+assert.ok(aggregate([certificate],'holdings').unknownProducts[0].reasons[0].includes('Zertifikat'));
+console.log('Unknown drill-down reconciles EUR/portfolio/product/unknown percentages, nesting, cycles, equal names and uninvested products.');
