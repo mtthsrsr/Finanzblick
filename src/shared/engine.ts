@@ -1,21 +1,29 @@
+import {securityName} from './chartAnalysis'
 import type { SavedProduct } from './model'
 import { marketValue } from './model'
 export type View = 'countries'|'holdings'
 export interface UnknownProduct {productId:string;name:string;value:number;weight:number;productWeight:number;unknownShare:number;reasons:string[]}
-export interface Row { key:string;name:string;value:number;weight:number;sources:string[];unknown:boolean }
+export interface Row { key:string;name:string;value:number;weight:number;sources:string[];unknown:boolean;identity?:'isin'|'name';quantity?:number }
 const countries:Record<string,string>={ 'united states':'USA','vereinigte staaten':'USA','vereinigte staaten von amerika':'USA','usa':'USA','united kingdom':'Großbritannien','vereinigtes königreich':'Großbritannien','grossbritannien':'Großbritannien','großbritannien':'Großbritannien','germany':'Deutschland','deutschland':'Deutschland','switzerland':'Schweiz','schweiz':'Schweiz','japan':'Japan','china':'China','taiwan':'Taiwan','south korea':'Südkorea','korea':'Südkorea','korea (south)':'Südkorea','india':'Indien','france':'Frankreich','italy':'Italien','spain':'Spanien','sweden':'Schweden','denmark':'Dänemark','finland':'Finnland','norway':'Norwegen','netherlands':'Niederlande','belgium':'Belgien','australia':'Australien','new zealand':'Neuseeland','austria':'Österreich','israel':'Israel','ireland':'Irland','singapore':'Singapur','hong kong':'Hongkong','brazil':'Brasilien','south africa':'Südafrika','saudi arabia':'Saudi-Arabien','united arab emirates':'Vereinigte Arabische Emirate','mexico':'Mexiko','indonesia':'Indonesien','malaysia':'Malaysia','philippines':'Philippinen','turkey':'Türkei','poland':'Polen','greece':'Griechenland','czech republic':'Tschechien','hungary':'Ungarn','qatar':'Katar','kuwait':'Kuwait','egypt':'Ägypten','canada':'Kanada','kanada':'Kanada' }
 const countryCodes:Record<string,string>={US:'USA',GB:'Großbritannien',DE:'Deutschland',CH:'Schweiz',FR:'Frankreich',NL:'Niederlande',JP:'Japan',CN:'China',TW:'Taiwan',KR:'Südkorea',CA:'Kanada',AU:'Australien',IN:'Indien',IE:'Irland',LU:'Luxemburg',IT:'Italien',ES:'Spanien',SE:'Schweden',DK:'Dänemark',FI:'Finnland',NO:'Norwegen',BE:'Belgien',AT:'Österreich',BR:'Brasilien',HK:'Hongkong',SG:'Singapur',ZA:'Südafrika',MX:'Mexiko'}
 export function aggregate(entries:SavedProduct[],view:View,single=false,library=entries) {
   const map=new Map<string,Row>()
+  const nameIds=new Map<string,Set<string>>()
+  for(const e of library){
+    const securities=[...(e.product.breakdowns.holdings?.rows||[]),...(e.product.kind==='stock'?[{name:e.product.name,isin:e.product.isin}]:[])]
+    for(const r of securities)if(r.isin){const name=securityName(r.name);const ids=nameIds.get(name)||new Set<string>();ids.add(r.isin);nameIds.set(name,ids)}
+  }
   let total=0
   let root:SavedProduct|undefined,rootValue=0
   const unresolved=new Map<string,UnknownProduct>()
   const add=(name:string,value:number,source:string,isin?:string,unknown=false,group=source)=>{
     if(value<=1e-8)return
     if(view==='countries')name=countryCodes[name.toUpperCase()]||countries[name.toLowerCase()]||name
-    const key=unknown?'unknown':isin||(view==='holdings'?group+'::':'')+name.toLocaleLowerCase()
+    const candidates=view==='holdings'?nameIds.get(securityName(name)):undefined
+    const inferred=!isin&&candidates?.size===1?[...candidates][0]:undefined
+    const key=unknown?'unknown':isin||inferred||(view==='holdings'?'name::'+securityName(name):name.toLocaleLowerCase())
     const previous=map.get(key)
-    map.set(key,{key,name,value:(previous?.value||0)+value,weight:0,sources:[...new Set([...(previous?.sources||[]),source])],unknown})
+    map.set(key,{key,name,value:(previous?.value||0)+value,weight:0,sources:[...new Set([...(previous?.sources||[]),source])],unknown,identity:view==='holdings'&&!unknown?(!isin||previous?.identity==='name'?'name':'isin'):undefined})
   }
   const unknown=(value:number,source:string,reason:string)=>{
     add('Nicht aufgeschlüsselt',value,source,undefined,true)

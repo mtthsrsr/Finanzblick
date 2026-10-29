@@ -1,5 +1,12 @@
 # Änderungen
 
+## 0.2.2 – 29.10.2026
+
+- Diagrammfilter: alle, zugeordnete oder unbekannte Positionen; Namenssuche, Sortierung und Zurücksetzen.
+- Umschalten zwischen EUR, Prozent des Gesamtwerts und Prozent der sichtbaren Auswahl. Tabelle zeigt alle drei Bezugsgrößen; ausgeblendete Beträge bleiben nachvollziehbar.
+- Gleiche Aktien aus mehreren Produkten werden nach ISIN und ergänzend nach vereinheitlichtem Namen zusammengeführt. Namensbasierte Zuordnungen sind gekennzeichnet; verschiedene bestätigte ISINs und Aktienklassen bleiben getrennt.
+- Tests sichern Eurobeträge und Filter-Bezugsgrößen sowie NVIDIA-Schreibweisen, Klassenunterschiede und widersprüchliche ISINs.
+
 ## 0.2.1 – 29.10.2026
 
 - „Nicht aufgeschlüsselt“ ist in Diagrammen und Tabellen anklickbar: Detailansicht mit Produkten, offenen Beträgen, unterschiedlichen Prozent-Bezugsgrößen und konkreten Ursachen; direkter Sprung zum Produkt.
