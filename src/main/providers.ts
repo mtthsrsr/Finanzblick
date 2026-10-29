@@ -1,3 +1,4 @@
+import {enrichUnion} from './unionComposition'
 import {supportedProductLink,readProductLink,parseProductLink} from './productLink'
 import {lookupUnion, lookupOnvista, unionDirectory} from './discovery'
 import {searchInput} from '../shared/searchInput'
@@ -119,6 +120,7 @@ export async function lookupInput(raw:string):Promise<Lookup>{
     const parsed=id?parseJustETF(page.html,id):null
     if(parsed)product={...verified(parsed,'justETF · direkt verlinktes Produktprofil'),productUrl:page.url}
    }
+   if(product?.provider==='union-fund')product=await enrichUnion(product,page.html,getText)
    if(product)return {status:'found',product:{...product,personalUrl:input.url},message:'Produkt direkt auf der eingefügten Seite bestätigt. Bitte ISIN und Anteilklasse vor dem Speichern vergleichen.'}
   }catch{/* Ordinary lookup or manual entry remains available when direct reading fails. */}
  }

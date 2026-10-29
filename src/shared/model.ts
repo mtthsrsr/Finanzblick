@@ -1,6 +1,6 @@
-import type { AnalysisProduct } from './analysis'
+import type { AnalysisProduct, Breakdown } from './analysis'
 export interface Certificate {wkn?:string;type?:string;issuer?:string;status?:string;sourceUrl:string;quoteAsOf?:string;bid?:number;ask?:number;quoteUnit?:string;details:Record<string,string>;documents:Array<{name:string;url:string}>}
-export interface Product extends AnalysisProduct { productUrl?:string; personalUrl?:string; certificate?:Certificate; verified: boolean; checkedAt: string; identitySource?: string }
+export interface Product extends AnalysisProduct { realEstateDetails?: {regions?:Breakdown;uses?:Breakdown}; productUrl?:string; personalUrl?:string; certificate?:Certificate; verified: boolean; checkedAt: string; identitySource?: string }
 export interface Investment { mode: 'value' | 'units'; valueEUR: number; quantity: number; priceEUR: number; asOf: string }
 export interface SavedProduct { product: Product; investment?: Investment }
 export interface State { version: 1; entries: SavedProduct[] }
