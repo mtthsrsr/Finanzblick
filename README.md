@@ -57,3 +57,21 @@ GitHub Actions baut die vier Zielplattformen bei Versions-Tags (`v…`). Erst we
 ## Lizenz und Datenquellen
 
 Eigener Anwendungscode: MIT, siehe LICENSE. Fremdbibliotheken behalten ihre jeweiligen Lizenzen. SheetJS 0.20.3 liegt als offizielles Paket in `vendor/`; seine Apache-2.0-Lizenz ist im Paket enthalten. Anbieter-Webseiten und komplette heruntergeladene Bestandslisten sind nicht Bestandteil der Testdaten. Tests verwenden synthetische Beispiele. Produktnamen und öffentlich bezogene Marktdaten bleiben ihren jeweiligen Rechteinhabern zugeordnet.
+
+## Neu in 0.2.0: erweiterte Produktsuche und Seitenimport
+
+- Union Investment: allgemeines öffentliches Produktverzeichnis statt eines einzelnen fest hinterlegten Fonds. Am 29.10.2026 enthielt das geprüfte Verzeichnis 258 Produktlinks. Die Liste wird zur Laufzeit geladen und höchstens sechs Stunden zwischengespeichert; sie ist keine Garantie für alle historischen, institutionellen oder nicht öffentlich gelisteten Anteilklassen.
+- Deka: Fondsprofile, ETF-Verzeichnis und Zertifikatsprofile; zusätzlicher ISIN-genauer Onvista-Fallback, auch für andere Anbieter und Aktien. Ein Treffer bestätigt nicht die Handelbarkeit bei Trade Republic oder einem anderen Broker.
+- Im Suchfeld kann eine selbst gefundene HTTPS-Produktseite eingefügt werden. Deka-, Union- und Onvista-Produktseiten werden direkt geprüft; justETF-Links mit ISIN werden ebenfalls unterstützt. Das funktioniert unabhängig davon, ob das Produktverzeichnis einen Treffer liefert. Links mit einer eindeutigen ISIN können auch die normale Suche auslösen.
+- Andere Seiten werden nicht beliebig automatisch ausgelesen. Wenn kein bestätigter Treffer möglich ist: „Manuell anlegen“, ISIN und Namen eintragen und den ursprünglichen Link mit speichern. Der eigene Link bleibt bei Aktualisierungen erhalten und ist keine automatische Bestätigung der Identität.
+- Identität und Bestandsdaten sind getrennt. Neue Union-/Onvista-Treffer können zunächst ohne Zusammensetzung erscheinen. Fehlende Bestände werden nicht erfunden. Der bekannte UniCommodities-Auszug bleibt ein ausdrücklich datierter historischer Stand.
+
+### Gesamtportfolio nachvollziehbar berechnen
+
+Jeder erfasste Depotbestand zählt mit seinem EUR-Marktwert (oder Stückzahl × EUR-Kurs) zum Gesamtwert, auch wenn die Aufteilung fehlt oder das Produkt manuell angelegt wurde. Gespeicherte Produkte ohne Bestand zählen nicht mit. Kurse werden nicht automatisch in EUR umgerechnet oder in den Bestand übernommen. Bestände und deren Bewertungsdatum müssen gepflegt werden.
+
+Fondsanteile werden mit dem jeweiligen Depotwert gewichtet; unbekannte Restanteile bleiben Teil des Nenners. Direkt gehaltene Aktien und Fondspositionen mit derselben ISIN werden zusammengefasst. Gleichnamige Positionen ohne ISIN werden zwischen verschiedenen Produkten nicht mehr ungeprüft vereinigt. Länder-Kürzel wie US und ausgeschriebene Namen wie United States werden vereinheitlicht. Bereits vorhandene Toleranz für veröffentlichte Rundungssummen bis 100,5 %: diese werden auf 100 % begrenzt; höhere oder ungültige Summen werden nicht als Verteilung verwendet.
+
+Eine verschachtelte Fondsauflösung verwendet die gespeicherte Produktbibliothek und zählt deren Bestandswert nicht erneut zum eingebetteten Anteil. Zyklen und Zertifikate werden nicht als unmittelbare Aktienpositionen ausgegeben. Daten unterschiedlicher Stichtage bleiben entsprechend gekennzeichnet; die Übersicht ist keine garantiert aktuelle vollständige Bestandsaufnahme aller Fonds.
+
+Validierung: automatisierte Tests für unterschiedliche Marktwerte, fehlende Aufteilungen, manuelle Produkte, Stückzahlen, direkte Aktienüberschneidungen, Fondsverschachtelungen, Zyklen, Zertifikate und Erhaltung der Gesamtsumme. Direkter Seitenimport wird auch mit ausgefallener Verzeichnissuche getestet. Live-Abfragen sind Momentaufnahmen, keine dauerhafte Verfügbarkeitsgarantie.

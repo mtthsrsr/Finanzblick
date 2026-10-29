@@ -7,10 +7,11 @@ import { readSheets } from './issuerProviders'
 import { join, basename } from 'node:path'
 import { readFile, writeFile } from 'node:fs/promises'
 import { mergeProduct } from '../shared/merge'
-import { lookupISIN } from './providers'
+import { lookupISIN, lookupInput } from './providers'
 import { validateState } from '../shared/validation'
 import type { State } from '../shared/model'
 
+if(process.env.FINANZBLICK_SMOKE_TEST==='1'&&!process.env.FINANZBLICK_DATA_DIR)throw new Error('Isolated test profile required.')
 app.setName('Finanzblick')
 app.setPath('userData',process.env.FINANZBLICK_DATA_DIR||join(app.getPath('appData'),'Finanzblick'))
 const store=new Store({name:'portfolio'})
@@ -40,7 +41,7 @@ if(!app.requestSingleInstanceLock()){app.quit()}else{
       }finally{refreshing=false}
     })
     ipcMain.handle('funds:importHoldings' ,async()=>{const {filePaths,canceled}=await dialog.showOpenDialog({title:'Bestandsliste importieren',properties:['openFile'],filters:[{name:'Bestandslisten',extensions:['csv','tsv','xlsx','xls']}]});if(canceled||!filePaths[0])return null;return {name:basename(filePaths[0]),sheets:readSheets(await readFile(filePaths[0]))}})
-    ipcMain.handle('funds:lookup',(_event,isin:unknown)=>{if(typeof isin!=='string'||isin.length>100)throw new Error('Ungültige ISIN.');return lookupISIN(isin)})
+    ipcMain.handle('funds:lookup',(_event,isin:unknown)=>{if(typeof isin!=='string'||isin.length>3000)throw new Error('Ungültige ISIN.');return lookupInput(isin)})
     ipcMain.handle('funds:read',()=>read())
     ipcMain.handle('funds:save',(_event,state:unknown)=>{validateState(state);store.set('data',state)})
     ipcMain.handle('funds:export',async()=>{const {filePath,canceled}=await dialog.showSaveDialog({title:'Portfolio sichern',defaultPath:`Fondsblick-${new Date().toISOString().slice(0,10)}.json`,filters:[{name:'Fondsblick-Datei',extensions:['json']}]});if(canceled||!filePath)return false;await writeFile(filePath,JSON.stringify(read(),null,2));return true})
@@ -49,6 +50,24 @@ if(!app.requestSingleInstanceLock()){app.quit()}else{
       win=new BrowserWindow({width:1380,height:920,minWidth:1020,minHeight:700,title:'Finanzblick',backgroundColor:'#f5f6f8',titleBarStyle:process.platform==='darwin'?'hiddenInset':'default',webPreferences:{preload:join(__dirname,'../preload/index.js'),contextIsolation:true,nodeIntegration:false,sandbox:true}})
       win.webContents.setWindowOpenHandler(({url})=>{if(/^https:\/\//i.test(url))void shell.openExternal(url);return {action:'deny'}})
       win.webContents.on('will-navigate',event=>event.preventDefault())
+      if(process.env.FINANZBLICK_SMOKE_TEST==='1'){
+        if(!process.env.FINANZBLICK_DATA_DIR)throw new Error('Isolated test profile required.')
+        const timer=setTimeout(()=>{console.error('FINANZBLICK_SMOKE_TIMEOUT');app.exit(1)},20000)
+        win.webContents.once('did-finish-load',async()=>{
+          try{
+            await win!.webContents.executeJavaScript(`(async()=>{
+              if(!window.fonds?.lookup||!window.fonds?.read)throw new Error('Missing bridge');
+              const state=await window.fonds.read();
+              if(state.entries.length!==0)throw new Error('Test profile must be empty');
+              const invalid=await window.fonds.lookup('invalid');
+              if(invalid.status!=='not-found')throw new Error('Input validation failed');
+              for(let i=0;i<50&&!document.querySelector('.shell');i++)await new Promise(r=>setTimeout(r,100));
+              if(!document.querySelector('.shell')||!document.body.textContent.includes(${JSON.stringify(app.getVersion())}))throw new Error('Renderer did not mount');
+            })()`)
+            clearTimeout(timer);console.log('FINANZBLICK_SMOKE_OK');app.exit(0)
+          }catch(error){console.error(error);app.exit(1)}
+        })
+      }
       void win.loadFile(join(__dirname,'../renderer/index.html'))
       win.on('closed',()=>{win=null})
     }

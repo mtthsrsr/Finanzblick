@@ -3,13 +3,14 @@ import { marketValue } from './model'
 export type View = 'countries'|'holdings'
 export interface Row { key:string;name:string;value:number;weight:number;sources:string[];unknown:boolean }
 const countries:Record<string,string>={ 'united states':'USA','vereinigte staaten':'USA','vereinigte staaten von amerika':'USA','usa':'USA','united kingdom':'Großbritannien','grossbritannien':'Großbritannien','großbritannien':'Großbritannien','germany':'Deutschland','deutschland':'Deutschland','switzerland':'Schweiz','schweiz':'Schweiz','japan':'Japan','china':'China','taiwan':'Taiwan','south korea':'Südkorea','korea':'Südkorea','korea (south)':'Südkorea','india':'Indien','france':'Frankreich','italy':'Italien','spain':'Spanien','sweden':'Schweden','denmark':'Dänemark','finland':'Finnland','norway':'Norwegen','netherlands':'Niederlande','belgium':'Belgien','australia':'Australien','new zealand':'Neuseeland','austria':'Österreich','israel':'Israel','ireland':'Irland','singapore':'Singapur','hong kong':'Hongkong','brazil':'Brasilien','south africa':'Südafrika','saudi arabia':'Saudi-Arabien','united arab emirates':'Vereinigte Arabische Emirate','mexico':'Mexiko','indonesia':'Indonesien','malaysia':'Malaysia','philippines':'Philippinen','turkey':'Türkei','poland':'Polen','greece':'Griechenland','czech republic':'Tschechien','hungary':'Ungarn','qatar':'Katar','kuwait':'Kuwait','egypt':'Ägypten','canada':'Kanada','kanada':'Kanada' }
+const countryCodes:Record<string,string>={US:'USA',GB:'Großbritannien',DE:'Deutschland',CH:'Schweiz',FR:'Frankreich',NL:'Niederlande',JP:'Japan',CN:'China',TW:'Taiwan',KR:'Südkorea',CA:'Kanada',AU:'Australien',IN:'Indien',IE:'Irland',LU:'Luxemburg',IT:'Italien',ES:'Spanien',SE:'Schweden',DK:'Dänemark',FI:'Finnland',NO:'Norwegen',BE:'Belgien',AT:'Österreich',BR:'Brasilien',HK:'Hongkong',SG:'Singapur',ZA:'Südafrika',MX:'Mexiko'}
 export function aggregate(entries:SavedProduct[],view:View,single=false,library=entries) {
   const map=new Map<string,Row>()
   let total=0
-  const add=(name:string,value:number,source:string,isin?:string,unknown=false)=>{
+  const add=(name:string,value:number,source:string,isin?:string,unknown=false,group=source)=>{
     if(value<=1e-8)return
-    if(view==='countries')name=countries[name.toLowerCase()]||name
-    const key=unknown?'unknown':isin||name.toLocaleLowerCase()
+    if(view==='countries')name=countryCodes[name.toUpperCase()]||countries[name.toLowerCase()]||name
+    const key=unknown?'unknown':isin||(view==='holdings'?group+'::':'')+name.toLocaleLowerCase()
     const previous=map.get(key)
     map.set(key,{key,name,value:(previous?.value||0)+value,weight:0,sources:[...new Set([...(previous?.sources||[]),source])],unknown})
   }
@@ -28,7 +29,7 @@ export function aggregate(entries:SavedProduct[],view:View,single=false,library=
       const child=r.isin&&library.find(e=>e.product.isin===r.isin)
       if(view==='holdings'&&child&&child.product.kind!=='stock')visit(child,amount,source,path)
       else if(/^(sonstige|other|others|rest|cash und derivate)$/i.test(r.name))unknown(amount,source)
-      else add(r.name,amount,source,view==='holdings'?r.isin:undefined)
+      else add(r.name,amount,source,view==='holdings'?r.isin:undefined,false,p.id)
     }
     unknown(value*Math.max(0,1-sum/100),source)
   }

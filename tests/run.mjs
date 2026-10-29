@@ -18,3 +18,25 @@ a.product.breakdowns.holdings.rows=[{name:'Cycle',isin:parent.product.isin,weigh
 assert.throws(()=>validateState({version:1,entries:[b,b]}));
 assert.equal((await lookupISIN('invalid')).status,'not-found');
 console.log('Portfolio weighting, residuals, nesting, cycles and validation passed.');
+// Accounting regressions: known + unknown values must always equal all invested EUR.
+const fund=make('DE0008491002',1000,[{name:'Apple',isin:'US0378331005',weight:50}]);
+const direct={...make('US0378331005',2000,[]),product:{id:'US0378331005',isin:'US0378331005',name:'Apple',kind:'stock',breakdowns:{}}};
+const manual={...make('DE0008491051',1000,[]),product:{id:'DE0008491051',isin:'DE0008491051',name:'Manual',kind:'fund',breakdowns:{}}};
+const uninvested={product:{...fund.product,id:'IE00BKM4GZ66',isin:'IE00BKM4GZ66'}};
+const combined=aggregate([fund,direct,manual,uninvested],'holdings');
+assert.equal(combined.total,4000);assert.equal(combined.rows.find(r=>r.key==='US0378331005').value,2500);assert.equal(combined.rows.find(r=>r.unknown).value,1500);assert.equal(combined.coverage,62.5);
+assert.equal(combined.rows.reduce((s,r)=>s+r.value,0),4000);
+const units={...fund,investment:{mode:'units',quantity:2.5,priceEUR:120,valueEUR:999,asOf:'2026-09-01'}};assert.equal(aggregate([units],'holdings').total,300);
+const countryA={...fund,product:{...fund.product,breakdowns:{countries:{rows:[{name:'US',weight:100}]}}}};
+const countryB={...manual,product:{...manual.product,breakdowns:{countries:{rows:[{name:'United States',weight:100}]}}}};
+assert.equal(aggregate([countryA,countryB],'countries').rows.length,1);
+const anonymousA=make('DE0008491002',1000,[{name:'Same name',weight:100}]);const anonymousB=make('DE0008491051',1000,[{name:'Same name',weight:100}]);
+assert.equal(aggregate([anonymousA,anonymousB],'holdings').rows.length,2);
+const certificate={...manual,product:{...manual.product,kind:'structured',breakdowns:{holdings:{rows:[{name:'Underlying',weight:100}]}}}};
+assert.equal(aggregate([certificate],'holdings').coverage,0);
+for(let n=1;n<=100;n++){
+ const one=make('DE0008491002',n*13.7,[{name:'Part',weight:n}]);const output=aggregate([one,manual],'holdings');
+ assert.ok(Math.abs(output.rows.reduce((s,r)=>s+r.value,0)-output.total)<1e-8);
+ assert.ok(Math.abs(output.rows.reduce((s,r)=>s+r.weight,0)-100)<1e-8);
+}
+console.log('Accounting regressions passed: manual/uninvested products, units, partial data, direct stock overlap, countries, certificates and conservation of totals.');
