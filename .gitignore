@@ -7,3 +7,5 @@ tests/.*
 *.log
 portfolio.json
 *private*
+
+tests/.discovery/

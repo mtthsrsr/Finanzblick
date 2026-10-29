@@ -1,3 +1,6 @@
+import {supportedProductLink,readProductLink,parseProductLink} from './productLink'
+import {lookupUnion, lookupOnvista, unionDirectory} from './discovery'
+import {searchInput} from '../shared/searchInput'
 import {withProductLink} from '../shared/links'
 import {lookupCertificate} from './certificates'
 import { loadAmundi, loadHSBC } from './issuerProviders'
@@ -70,15 +73,12 @@ async function enrichIshares(p:AnalysisProduct,html:string):Promise<AnalysisProd
 export async function lookupISIN(raw:string):Promise<Lookup>{
   const isin=raw.replace(/\s/g,'').toUpperCase()
   if(!isValidIsin(isin))return {status:'not-found',message:'Bitte eine gültige ISIN mit 12 Zeichen eingeben. Die Prüfziffer stimmt nicht.'}
-  if(isin==='LU0249045476'){
-    const p=await loadProduct({isin,id:isin,provider:'union-snapshot'} as AnalysisProduct)
-    return {status:'found',product:verified(p,'Union Investment · Produktinformation'),message:'Produkt bestätigt. Dokumentierter Stand vom 31.08.2026; Rohstofffonds, kein Aktienfonds.'}
-  }
-  const [deka,profile,etf,certificate]=await Promise.allSettled([
+  const [deka,profile,etf,certificate,union]=await Promise.allSettled([
     (async()=>{dekaCache??=parseDekaCatalog(await getText('https://www.deka-etf.de/etfs'));const p=dekaCache.find(p=>p.isin===isin);if(!p)return null;try{return parseDekaComposition(await getText('https://www.deka-etf.de'+p.providerPath+'/composition_data'),p)}catch{return {...p,notes:'Produkt bestätigt, Zusammensetzung momentan nicht abrufbar.'}}})(),
     getText(`https://www.deka.de/privatkunden-legacy/fondsprofil?fl=1&id=${isin}`).then(html=>parseDekaFund(html,isin)),
     getText(`https://www.justetf.com/de/etf-profile.html?isin=${isin}`).then(html=>({p:parseJustETF(html,isin),html})),
-    isin.startsWith('DE')?lookupCertificate(isin):Promise.resolve(null)
+    isin.startsWith('DE')?lookupCertificate(isin):Promise.resolve(null),
+    lookupUnion(isin,getText)
   ])
   if(certificate.status==='fulfilled'&&certificate.value)return {status:'found',product:withProductLink(certificate.value),message:'ISIN im offiziellen Deka-Zertifikatsprofil bestätigt. Kurse sind Momentaufnahmen mit ausgewiesenem Stand.'}
   if(deka.status==='fulfilled'&&deka.value)return {status:'found',product:verified(deka.value,'Deka Investment'),message:'ISIN im offiziellen Deka-Verzeichnis bestätigt.'}
@@ -88,6 +88,49 @@ export async function lookupISIN(raw:string):Promise<Lookup>{
     try{if(/^Amundi /i.test(p.name))p=await loadAmundi(p);else if(/^HSBC /i.test(p.name))p=await loadHSBC(p);else p=await enrichIshares(p,etf.value.html)}catch{p={...p,notes:(p.notes||'')+' Die vollständige Anbieterliste konnte bei diesem Abruf nicht bestätigt werden.'}}
     return {status:'found',product:verified(p,'justETF · Produktprofil'),message:'ISIN im ETF-Verzeichnis bestätigt.'}
   }
-  const unavailable=[deka,profile,etf].some(p=>p.status==='rejected')
+  if(union.status==='fulfilled'&&union.value){
+    let product=union.value
+    if(isin==='LU0249045476'){
+      const snapshot=await loadProduct({isin,id:isin,provider:'union-snapshot'} as AnalysisProduct)
+      product={...product,kind:snapshot.kind,basis:snapshot.basis,breakdowns:snapshot.breakdowns,notes:'Identität aktuell geprüft. Zusammensetzung aus dokumentiertem Stand vom 31.08.2026, keine aktuellen Bestandsdaten.'}
+    }
+    return {status:'found',product,message:'ISIN im allgemeinen Union-Investment-Verzeichnis und Produktprofil bestätigt. Fehlende Aufteilungen bleiben sichtbar.'}
+  }
+  const fallback=await lookupOnvista(isin,getText).then(product=>({product,error:false})).catch(()=>({product:null,error:true}))
+  if(fallback.product)return {status:'found',product:fallback.product,message:'Produkt anhand seiner ISIN bei Onvista bestätigt. Zusammensetzung separat ergänzen; Quelle am Produkt prüfen.'}
+  if(isin==='LU0249045476'){
+    const snapshot=await loadProduct({isin,id:isin,provider:'union-snapshot'} as AnalysisProduct)
+    return {status:'found',product:verified(snapshot,'Union Investment · archivierte Produktinformation'),message:'Aktuelle Quelle nicht bestätigt. Gespeicherte Produktinformation mit Stand 31.08.2026 geladen.'}
+  }
+  const unavailable=fallback.error||[deka,profile,etf,certificate,union].some(p=>p.status==='rejected')
   return {status:unavailable?'unavailable':'not-found',message:unavailable?'Das Produkt konnte nicht bestätigt werden; mindestens eine Datenquelle ist momentan nicht erreichbar. Erneut versuchen oder ausdrücklich manuell anlegen.':'In den angebundenen Verzeichnissen wurde kein bestätigter Treffer gefunden. Das bedeutet nicht, dass das Produkt nicht existiert. Du kannst es manuell anlegen.'}
+}
+
+export async function lookupInput(raw:string):Promise<Lookup>{
+ const input=searchInput(raw)
+ if(input.error)return {status:'not-found',message:input.error}
+ let isin=input.isin
+ if(input.url&&supportedProductLink(input.url)){
+  try{
+   const page=await readProductLink(input.url)
+   let product=parseProductLink(page.html,page.url,isin)
+   if(!product&&new URL(page.url).hostname==='www.justetf.com'){
+    const id=isin||searchInput(page.url).isin
+    const parsed=id?parseJustETF(page.html,id):null
+    if(parsed)product={...verified(parsed,'justETF · direkt verlinktes Produktprofil'),productUrl:page.url}
+   }
+   if(product)return {status:'found',product:{...product,personalUrl:input.url},message:'Produkt direkt auf der eingefügten Seite bestätigt. Bitte ISIN und Anteilklasse vor dem Speichern vergleichen.'}
+  }catch{/* Ordinary lookup or manual entry remains available when direct reading fails. */}
+ }
+ if(!isin&&input.url){
+  const url=new URL(input.url)
+  try{
+   if(url.origin==='https://www.union-investment.de')isin=[...(await unionDirectory(getText))].find(([,link])=>new URL(link).pathname===url.pathname)?.[0]
+   else if(url.origin==='https://www.deka-etf.de')isin=parseDekaCatalog(await getText('https://www.deka-etf.de/etfs')).find(p=>p.providerPath===url.pathname)?.isin
+  }catch{return {status:'unavailable',message:'Das Anbieter-Verzeichnis ist momentan nicht erreichbar. Du kannst alternativ die ISIN eingeben.'}}
+ }
+ if(!isin)return {status:'not-found',message:'Aus diesem Link konnte keine eindeutige ISIN ermittelt werden. Bitte die ISIN von der Produktseite eingeben. Den Link kannst du auch bei einem manuell angelegten Produkt speichern.'}
+ const result=await lookupISIN(isin)
+ if(result.product&&input.url)result.product={...result.product,personalUrl:input.url}
+ return result
 }

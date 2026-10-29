@@ -1,0 +1,13 @@
+import {spawn} from 'node:child_process';
+import {mkdtemp,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import {join} from 'node:path';
+import electron from 'electron';
+const dir=await mkdtemp(join(tmpdir(),'finanzblick-smoke-'));
+const env={...process.env,FINANZBLICK_DATA_DIR:dir,FINANZBLICK_SMOKE_TEST:'1'};delete env.ELECTRON_RUN_AS_NODE;
+const child=spawn(electron,['.'],{env,stdio:['ignore','pipe','pipe']});
+let output='';for(const stream of [child.stdout,child.stderr])stream.on('data',b=>{output+=b;process.stdout.write(b)});
+const timer=setTimeout(()=>child.kill(),30000);
+const code=await new Promise(resolve=>{child.on('close',resolve);child.on('error',()=>resolve(1))});clearTimeout(timer);
+await rm(dir,{recursive:true,force:true,maxRetries:5,retryDelay:200});
+if(code!==0||!output.includes('FINANZBLICK_SMOKE_OK'))process.exitCode=1;

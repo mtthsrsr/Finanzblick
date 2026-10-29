@@ -1,16 +1,17 @@
 {
   "name": "finanzblick",
   "productName": "Finanzblick",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "private": true,
   "description": "Fonds und ETFs nach L\u00e4ndern und Einzelanlagen verstehen",
   "main": "out/main/index.js",
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node tests/run.mjs && node tests/providers.mjs && node tests/links.mjs && node tests/finance.mjs",
+    "test": "node tests/run.mjs && node tests/providers.mjs && node tests/links.mjs && node tests/finance.mjs && node tests/discovery.mjs",
     "typecheck": "tsc --noEmit",
     "start": "npm run build && electron .",
-    "dist": "npm run build && electron-builder --publish never"
+    "dist": "npm run build && electron-builder --publish never",
+    "test:smoke": "node scripts/smoke.mjs"
   },
   "dependencies": {
     "electron-store": "^8.2.0",

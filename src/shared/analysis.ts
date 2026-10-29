@@ -14,7 +14,7 @@ export interface AnalysisProduct {
   isin?: string
   ticker?: string
   kind: ProductKind
-  provider: 'deka-certificate' | 'deka-etf' | 'deka-fund' | 'yahoo' | 'manual' | 'union-snapshot'
+  provider: 'deka-certificate' | 'deka-etf' | 'deka-fund' | 'yahoo' | 'manual' | 'union-snapshot' | 'union-fund' | 'onvista'
   providerPath?: string
   currency: string
   price?: number
